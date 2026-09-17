@@ -1,10 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import styles from './index.css'
+import Nav from './components/unlumen-ui/motion-navigation-menu'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <Nav />
   </StrictMode>,
 )
