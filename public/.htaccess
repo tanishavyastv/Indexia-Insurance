@@ -1,0 +1,24 @@
+# Indexia Insurance — static export on Hostinger Apache
+
+# Default document
+DirectoryIndex index.html
+
+# Next.js static export 404 page
+ErrorDocument 404 /404.html
+
+# Force HTTPS (Hostinger also offers this via hPanel → AutoSSL, safe to keep both)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# Long-cache hashed static assets; HTML stays fresh
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+</IfModule>
