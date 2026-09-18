@@ -1,78 +1,57 @@
-# React + TypeScript + Vite
+# Indexia Insurance
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A single-page insurance landing site — compare plans and apply through a 4-step quote form. Submissions are delivered by [FormSubmit](https://formsubmit.co) to `contactus@indexiainsurance.com` — no backend or API key needed.
 
-Currently, two official plugins are available:
+Built with **Next.js 16**, **React 19**, **Tailwind CSS 4**, and **framer-motion**.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Getting started
 
-## React Compiler
-
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
+npm run dev        # dev server at http://localhost:3000
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Command                 | What it does                                                        |
+| ----------------------- | ------------------------------------------------------------------- |
+| `npm run dev`           | Start the dev server                                                |
+| `npm run build`         | Production build (Node server / Vercel)                             |
+| `npm run build:static`  | Static export into `out/` — for Hostinger shared hosting            |
+| `npm run lint`          | Run oxlint                                                          |
 
+## Deploying to Hostinger (FileZilla)
+
+Shared hosting serves static files only, so the site is exported to plain HTML:
+
+1. `npm run build:static`
+2. In FileZilla, connect with the FTP credentials from hPanel (*Files → FTP Accounts*)
+3. Open the remote `public_html` folder
+4. Upload the **contents** of the local `out/` folder (not the folder itself): `index.html`, `_next/`, `404.html`, `logo.png`, `favicon.svg`, `.htaccess`, and the `.txt` files
+5. Enable *Server → Force showing hidden files* in FileZilla and verify `.htaccess` uploaded
+6. **First submission only:** FormSubmit emails an activation link to `contactus@indexiainsurance.com` — click it once to start receiving submissions
+7. Visit the domain and submit the quote form once to confirm the email arrives
+
+Re-deploys: rebuild, delete the old `_next/` folder in `public_html`, and re-upload.
+
+## Project structure
+
+```
+src/
+  app/
+    layout.tsx        # fonts + metadata
+    page.tsx          # the landing page
+    globals.css       # Tailwind theme (brand, ocean, sun, ash palettes)
+  components/
+    Navbar.tsx        # anchor nav + mobile menu
+    Hero.tsx          # "What do you want to protect?" cards
+    WhyIndexia.tsx    # value props
+    Products.tsx      # all 10 insurance types
+    QuoteForm.tsx     # 4-step form → Web3Forms
+    Footer.tsx
+    ui.tsx            # shared tokens, Logo, SectionHeading
+  lib/
+    data.ts           # insurance catalogue & form options
+    utils.ts          # cn() helper
 ```
