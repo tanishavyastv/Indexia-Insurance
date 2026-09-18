@@ -1,8 +1,11 @@
+"use client";
+
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, ShieldCheck, UserRound } from "lucide-react";
-import { productById, type ProductId } from "../data";
-import { SectionHeading } from "./ui";
+import { annualIncomes, insuranceById, insuranceTypes, tenureOptions } from "@/lib/data";
+import { SectionHeading, quoteField, quoteError, stepBadge, stepLabel } from "./ui";
+import { cn } from "@/lib/utils";
 
 type Step = 0 | 1 | 2 | 3;
 const stepMeta = [
@@ -12,22 +15,8 @@ const stepMeta = [
   { label: "Review", icon: ArrowRight },
 ] as const;
 
-const annualIncomes = ["Below ₹5 L", "₹5–10 L", "₹10–25 L", "₹25 L+"];
-const coverOptions: Partial<Record<ProductId, string[]>> = {
-  term: ["₹50 L", "₹1 Cr", "₹2 Cr", "₹5 Cr"],
-  health: ["₹5 L", "₹10 L", "₹25 L", "₹50 L"],
-  critical: ["₹10 L", "₹25 L", "₹50 L", "₹1 Cr"],
-  car: ["IDV-based", "Zero-dep", "Third-party"],
-  bike: ["IDV-based", "Zero-dep", "Third-party"],
-  travel: ["Domestic", "Worldwide excl. US/Canada", "Worldwide incl. US/Canada"],
-  home: ["₹25 L", "₹50 L", "₹1 Cr", "₹2 Cr"],
-  savings: ["Guaranteed income", "ULIP (market-linked)", "Endowment"],
-  retirement: ["Deferred annuity", "Immediate annuity"],
-  child: ["₹10 L", "₹25 L", "₹50 L", "₹1 Cr"],
-};
-
 type Form = {
-  productId: ProductId | "";
+  productId: string;
   cover: string;
   tenure: string;
   fullName: string;
@@ -66,9 +55,6 @@ const initialForm: Form = {
   consent: false,
 };
 
-const inputBase =
-  "h-11 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-ash-900 placeholder:text-ash-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 focus:outline-none";
-
 function Field({
   label,
   htmlFor,
@@ -89,7 +75,7 @@ function Field({
         {hint ? <span className="ml-1 text-xs font-normal text-ash-400">{hint}</span> : null}
       </label>
       {children}
-      {error ? <p className="mt-1 text-xs font-medium text-destructive">{error}</p> : null}
+      {error ? <p className={quoteError}>{error}</p> : null}
     </div>
   );
 }
@@ -98,12 +84,14 @@ export default function QuoteForm() {
   const [step, setStep] = useState<Step>(0);
   const [form, setForm] = useState<Form>(initialForm);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({});
 
-  const product = form.productId ? productById[form.productId] : undefined;
+  const product = form.productId ? insuranceById[form.productId as keyof typeof insuranceById] : undefined;
   const covers = useMemo(
-    () => (form.productId ? coverOptions[form.productId] ?? [] : []),
-    [form.productId],
+    () => (product ? product.options : []),
+    [product],
   );
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
@@ -111,10 +99,7 @@ export default function QuoteForm() {
     setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  const validate = (
-    target: Step,
-    withConsent: boolean,
-  ): Partial<Record<keyof Form, string>> => {
+  const validate = (target: Step, withConsent: boolean): Partial<Record<keyof Form, string>> => {
     const e: Partial<Record<keyof Form, string>> = {};
     if (target > 0) {
       if (!form.productId) e.productId = "Select a plan to continue";
@@ -143,29 +128,82 @@ export default function QuoteForm() {
 
   const goBack = () => setStep((s) => (s - 1) as Step);
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const e = validate(3, true);
     setErrors(e);
-    if (Object.keys(e).length === 0) setSubmitted(true);
+    if (Object.keys(e).length > 0) return;
+
+    // Honeypot: silently drop bot submissions (FormSubmit's _honey field)
+    const honeypot = event.currentTarget.elements.namedItem("_honey") as HTMLInputElement | null;
+    if (honeypot?.value) return;
+
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      // FormSubmit.co AJAX endpoint — delivers the submission as an email to
+      // contactus@indexiainsurance.com. `_captcha: false` skips their captcha
+      // (the honeypot field already stops bots); `_template: table` renders the
+      // submission as a readable table in the inbox.
+      const res = await fetch("https://formsubmit.co/ajax/contactus@indexiainsurance.com", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          _subject: `New ${form.productId} insurance quote request — ${form.fullName}`,
+          _template: "table",
+          _captcha: "false",
+          _replyto: form.email,
+          Name: form.fullName,
+          Email: form.email,
+          Mobile: form.phone,
+          Plan: form.productId,
+          "Cover amount": form.cover,
+          "Policy term": form.tenure,
+          "Date of birth": form.dob,
+          Gender: form.gender,
+          "Annual income": form.income,
+          City: form.city,
+          "PIN code": form.pincode,
+          "Smoker/tobacco": form.smoker,
+          "Pre-existing conditions": form.preExisting,
+          "Members to insure": form.members,
+          Nominee: form.nominee || "—",
+          "Nominee relationship": form.nomineeRelation || "—",
+          "Honey": "",
+        }),
+      });
+      const result = (await res.json().catch(() => ({}))) as {
+        success?: boolean | string;
+        message?: string;
+      };
+      if (res.ok && (result.success === true || result.success === "true")) {
+        setSubmitted(true);
+      } else {
+        setSubmitError(result.message ?? "Submission failed. Please try again.");
+      }
+    } catch {
+      setSubmitError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
     return (
-      <section id="apply" className="bg-white py-16 lg:py-20">
+      <section id="apply" className="bg-white py-10 lg:py-14">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="rounded-3xl border border-brand-200 bg-brand-50 p-10 text-center"
+            className="rounded-3xl border border-brand-200 bg-brand-50 p-8 text-center"
           >
-            <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-brand-500 text-white">
-              <Check className="size-8" aria-hidden="true" />
+            <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-brand-500 text-white">
+              <Check className="size-6" aria-hidden="true" />
             </span>
-            <h3 className="mt-5 font-display text-2xl font-bold text-ash-900">
+            <h3 className="mt-4 font-display text-xl font-bold text-ash-900">
               Application received!
             </h3>
-            <p className="mx-auto mt-2 max-w-md text-ash-600">
+            <p className="mx-auto mt-2 max-w-md text-sm text-ash-600">
               Thanks {form.fullName.split(" ")[0]} — our advisor will call you within 24 hours on{" "}
               <strong>{form.phone}</strong> about your <strong>{product?.name}</strong> application.
             </p>
@@ -177,7 +215,7 @@ export default function QuoteForm() {
                 setSubmitted(false);
                 setErrors({});
               }}
-              className="mt-6 rounded-full bg-brand-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-600"
+              className="mt-5 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-600"
             >
               Start a new application
             </button>
@@ -188,7 +226,7 @@ export default function QuoteForm() {
   }
 
   return (
-    <section id="apply" className="bg-white py-16 lg:py-20">
+    <section id="apply" className="bg-white py-10 lg:py-14">
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <SectionHeading
           eyebrow="Get Started"
@@ -196,32 +234,23 @@ export default function QuoteForm() {
           description="One smart form, honest advice, and a callback from a certified advisor — no spam, ever."
         />
 
-        <div className="mt-10 rounded-3xl border border-ash-200 bg-ash-100/50 p-5 sm:p-8">
+        <div className="mt-6 rounded-3xl border border-ash-200 bg-ash-100/50 p-4 sm:p-6">
           {/* Stepper */}
-          <ol className="mb-8 grid grid-cols-4 gap-2">
+          <ol className="mb-6 grid grid-cols-4 gap-2">
             {stepMeta.map((meta, index) => {
               const Icon = meta.icon;
               const state = index < step ? "done" : index === step ? "current" : "todo";
               return (
                 <li key={meta.label} className="flex flex-col items-center gap-1.5 text-center">
                   <span
-                    className={
-                      "flex size-9 items-center justify-center rounded-full border-2 transition-colors " +
-                      (state === "done"
-                        ? "border-brand-500 bg-brand-500 text-white"
-                        : state === "current"
-                          ? "border-brand-500 bg-white text-brand-600"
-                          : "border-ash-300 bg-white text-ash-400")
-                    }
+                    className={cn(
+                      "flex size-9 items-center justify-center rounded-full border-2 transition-colors",
+                      stepBadge[state],
+                    )}
                   >
                     <Icon className="size-4" aria-hidden="true" />
                   </span>
-                  <span
-                    className={
-                      "text-[11px] font-semibold sm:text-xs " +
-                      (state === "todo" ? "text-ash-400" : "text-ash-900")
-                    }
-                  >
+                  <span className={cn("text-xs font-semibold", stepLabel[state])}>
                     {meta.label}
                   </span>
                 </li>
@@ -230,11 +259,18 @@ export default function QuoteForm() {
           </ol>
 
           <form onSubmit={submit} noValidate>
+            {/* Honeypot — hidden from humans, catches bots (FormSubmit _honey) */}
+            <div className="hidden" aria-hidden="true">
+              <label>
+                Don't fill this out: <input name="_honey" tabIndex={-1} autoComplete="off" />
+              </label>
+            </div>
+
             {step === 0 && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <Field label="Which insurance do you need?" htmlFor="productId" error={errors.productId}>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {Object.values(productById).map((p) => {
+                    {insuranceTypes.map((p) => {
                       const Icon = p.icon;
                       const active = form.productId === p.id;
                       return (
@@ -251,18 +287,18 @@ export default function QuoteForm() {
                           }
                         >
                           <Icon className="size-4 shrink-0" aria-hidden="true" />
-                          <span className="truncate">{p.name}</span>
+                          <span className="truncate">{p.name.replace(" Insurance", "")}</span>
                         </button>
                       );
                     })}
                   </div>
                 </Field>
 
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <Field label="Cover amount" htmlFor="cover" error={errors.cover} hint="(sum assured)">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="Cover amount" htmlFor="cover" error={errors.cover}>
                     <select
                       id="cover"
-                      className={inputBase}
+                      className={quoteField}
                       value={form.cover}
                       onChange={(e) => set("cover", e.target.value)}
                     >
@@ -275,16 +311,14 @@ export default function QuoteForm() {
                   <Field label="Policy term" htmlFor="tenure" error={errors.tenure}>
                     <select
                       id="tenure"
-                      className={inputBase}
+                      className={quoteField}
                       value={form.tenure}
                       onChange={(e) => set("tenure", e.target.value)}
                     >
                       <option value="">Select term</option>
-                      <option value="1 year">1 year</option>
-                      <option value="5 years">5 years</option>
-                      <option value="10 years">10 years</option>
-                      <option value="Up to age 60">Up to age 60</option>
-                      <option value="Up to age 80">Up to age 80</option>
+                      {tenureOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
                     </select>
                   </Field>
                 </div>
@@ -292,11 +326,11 @@ export default function QuoteForm() {
             )}
 
             {step === 1 && (
-              <div className="grid gap-6 sm:grid-cols-2">
+              <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Full name" htmlFor="fullName" error={errors.fullName}>
                   <input
                     id="fullName"
-                    className={inputBase}
+                    className={quoteField}
                     placeholder="As per government ID"
                     value={form.fullName}
                     onChange={(e) => set("fullName", e.target.value)}
@@ -306,7 +340,7 @@ export default function QuoteForm() {
                   <input
                     id="email"
                     type="email"
-                    className={inputBase}
+                    className={quoteField}
                     placeholder="you@example.com"
                     value={form.email}
                     onChange={(e) => set("email", e.target.value)}
@@ -318,7 +352,7 @@ export default function QuoteForm() {
                     type="tel"
                     inputMode="numeric"
                     maxLength={10}
-                    className={inputBase}
+                    className={quoteField}
                     placeholder="10-digit mobile"
                     value={form.phone}
                     onChange={(e) => set("phone", e.target.value.replace(/\D/g, ""))}
@@ -328,7 +362,7 @@ export default function QuoteForm() {
                   <input
                     id="dob"
                     type="date"
-                    className={inputBase}
+                    className={quoteField}
                     value={form.dob}
                     onChange={(e) => set("dob", e.target.value)}
                   />
@@ -336,7 +370,7 @@ export default function QuoteForm() {
                 <Field label="Gender" htmlFor="gender" error={errors.gender}>
                   <select
                     id="gender"
-                    className={inputBase}
+                    className={quoteField}
                     value={form.gender}
                     onChange={(e) => set("gender", e.target.value as Form["gender"])}
                   >
@@ -349,7 +383,7 @@ export default function QuoteForm() {
                 <Field label="Annual income" htmlFor="income" error={errors.income}>
                   <select
                     id="income"
-                    className={inputBase}
+                    className={quoteField}
                     value={form.income}
                     onChange={(e) => set("income", e.target.value)}
                   >
@@ -362,7 +396,7 @@ export default function QuoteForm() {
                 <Field label="City" htmlFor="city" error={errors.city}>
                   <input
                     id="city"
-                    className={inputBase}
+                    className={quoteField}
                     placeholder="e.g. Mumbai"
                     value={form.city}
                     onChange={(e) => set("city", e.target.value)}
@@ -373,7 +407,7 @@ export default function QuoteForm() {
                     id="pincode"
                     inputMode="numeric"
                     maxLength={6}
-                    className={inputBase}
+                    className={quoteField}
                     placeholder="6-digit PIN"
                     value={form.pincode}
                     onChange={(e) => set("pincode", e.target.value.replace(/\D/g, ""))}
@@ -383,11 +417,11 @@ export default function QuoteForm() {
             )}
 
             {step === 2 && (
-              <div className="grid gap-6 sm:grid-cols-2">
+              <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Members to be insured" htmlFor="members">
                   <select
                     id="members"
-                    className={inputBase}
+                    className={quoteField}
                     value={form.members}
                     onChange={(e) => set("members", e.target.value)}
                   >
@@ -400,7 +434,7 @@ export default function QuoteForm() {
                 <Field label="Do you smoke or use tobacco?" htmlFor="smoker">
                   <select
                     id="smoker"
-                    className={inputBase}
+                    className={quoteField}
                     value={form.smoker}
                     onChange={(e) => set("smoker", e.target.value as Form["smoker"])}
                   >
@@ -416,7 +450,7 @@ export default function QuoteForm() {
                 >
                   <select
                     id="preExisting"
-                    className={inputBase}
+                    className={quoteField}
                     value={form.preExisting}
                     onChange={(e) => set("preExisting", e.target.value as Form["preExisting"])}
                   >
@@ -428,7 +462,7 @@ export default function QuoteForm() {
                 <Field label="Nominee name" htmlFor="nominee">
                   <input
                     id="nominee"
-                    className={inputBase}
+                    className={quoteField}
                     placeholder="Who should receive the benefit?"
                     value={form.nominee}
                     onChange={(e) => set("nominee", e.target.value)}
@@ -437,7 +471,7 @@ export default function QuoteForm() {
                 <Field label="Nominee relationship" htmlFor="nomineeRelation">
                   <select
                     id="nomineeRelation"
-                    className={inputBase}
+                    className={quoteField}
                     value={form.nomineeRelation}
                     onChange={(e) => set("nomineeRelation", e.target.value)}
                   >
@@ -455,7 +489,7 @@ export default function QuoteForm() {
 
             {step === 3 && (
               <div className="space-y-4">
-                <div className="grid gap-3 rounded-2xl border border-ash-200 bg-white p-5 text-sm sm:grid-cols-2">
+                <div className="grid gap-3 rounded-2xl border border-ash-200 bg-white p-4 text-sm sm:grid-cols-2">
                   <p><span className="text-ash-500">Plan:</span> <strong>{product?.name}</strong></p>
                   <p><span className="text-ash-500">Cover:</span> <strong>{form.cover}</strong></p>
                   <p><span className="text-ash-500">Term:</span> <strong>{form.tenure}</strong></p>
@@ -467,7 +501,7 @@ export default function QuoteForm() {
                   <p><span className="text-ash-500">Insured members:</span> <strong>{form.members}</strong></p>
                   <p><span className="text-ash-500">Nominee:</span> <strong>{form.nominee || "—"} {form.nomineeRelation ? `(${form.nomineeRelation})` : ""}</strong></p>
                 </div>
-                <label className="flex items-start gap-3 rounded-2xl border border-ash-200 bg-white p-4 text-sm text-ash-600">
+                <label className="flex items-start gap-3 rounded-2xl border border-ash-200 bg-white p-3.5 text-sm text-ash-600">
                   <input
                     type="checkbox"
                     checked={form.consent}
@@ -481,18 +515,18 @@ export default function QuoteForm() {
                   </span>
                 </label>
                 {errors.consent ? (
-                  <p className="text-xs font-medium text-destructive">{errors.consent}</p>
+                  <p className={quoteError}>{errors.consent}</p>
                 ) : null}
               </div>
             )}
 
             {/* Actions */}
-            <div className="mt-8 flex items-center justify-between gap-4">
+            <div className="mt-6 flex items-center justify-between gap-4">
               <button
                 type="button"
                 onClick={goBack}
                 disabled={step === 0}
-                className="inline-flex items-center gap-2 rounded-full border border-ash-300 px-5 py-2.5 text-sm font-semibold text-ash-700 transition-colors hover:bg-white disabled:invisible"
+                className="inline-flex items-center gap-2 rounded-full border border-ash-300 px-5 py-2 text-sm font-semibold text-ash-700 transition-colors hover:bg-white disabled:invisible"
               >
                 <ArrowLeft className="size-4" aria-hidden="true" /> Back
               </button>
@@ -500,19 +534,24 @@ export default function QuoteForm() {
                 <button
                   type="button"
                   onClick={goNext}
-                  className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600"
+                  className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600"
                 >
                   Continue <ArrowRight className="size-4" aria-hidden="true" />
                 </button>
               ) : (
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600"
+                  disabled={submitting}
+                  className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60"
                 >
-                  Submit application <ArrowRight className="size-4" aria-hidden="true" />
+                  {submitting ? "Submitting…" : ("Submit application")}
+                  <ArrowRight className="size-4" aria-hidden="true" />
                 </button>
               )}
             </div>
+            {submitError ? (
+              <p className="mt-3 text-sm font-medium text-red-600">{submitError}</p>
+            ) : null}
           </form>
         </div>
       </div>
