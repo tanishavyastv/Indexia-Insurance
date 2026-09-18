@@ -4,7 +4,7 @@ import { Logo } from "./ui";
 
 const companyLinks = [
   { label: "Why Indexia", href: "#why" },
-  { label: "Explore Insurance", href: "#products" },
+  { label: "Explore Insurance", href: "#" },
   { label: "Get a Quote", href: "#apply" },
 ];
 
@@ -18,7 +18,7 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer id="footer" className="bg-ash-900 text-ash-300">
+    <footer id="footer" className="bg-ocean-900 text-ash-300">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-8 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
           <div>
@@ -100,7 +100,7 @@ export default function Footer() {
 
         <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-5 text-xs text-ash-500 sm:flex-row">
           <p>© {year} Indexia Group. All rights reserved.</p>
-          <p>Insurance, without the confusion.</p>
+          <p>This website is under development.</p>
         </div>
       </div>
     </footer>

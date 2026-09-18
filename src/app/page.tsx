@@ -1,7 +1,6 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import WhyIndexia from "@/components/WhyIndexia";
-import Products from "@/components/Products";
 import QuoteForm from "@/components/QuoteForm";
 import Footer from "@/components/Footer";
 
@@ -12,7 +11,6 @@ export default function Home() {
       <main>
         <Hero />
         <WhyIndexia />
-        <Products />
         <QuoteForm />
       </main>
       <Footer />

@@ -21,7 +21,7 @@ export default function Navbar() {
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Main navigation">
           {navGroups.map((group) => (
-            <a key={group.label} href="#products" className={topLink}>
+            <a key={group.label} href="#apply" className={topLink}>
               {group.label}
             </a>
           ))}
@@ -73,7 +73,7 @@ export default function Navbar() {
                   return (
                     <li key={id}>
                       <a
-                        href="#products"
+                        href="#apply"
                         onClick={() => setMobileOpen(false)}
                         className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-ash-700 hover:bg-brand-50"
                       >

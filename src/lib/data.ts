@@ -10,29 +10,7 @@ import {
   Plane,
   ShieldCheck,
   Stethoscope,
-  Users,
 } from "lucide-react";
-
-/* ------------------------------------------------------------------ */
-/* Protect cards — hero entry point ("What do you want to protect?")   */
-/* ------------------------------------------------------------------ */
-
-export type ProtectCard = {
-  id: string;
-  label: string;
-  blurb: string;
-  icon: LucideIcon;
-};
-
-export const protectCards: ProtectCard[] = [
-  { id: "health", label: "Health", blurb: "Cover medical expenses", icon: HeartPulse },
-  { id: "family", label: "Family", blurb: "Protect your family's future", icon: Users },
-  { id: "car", label: "Car", blurb: "Protect your car", icon: Car },
-  { id: "bike", label: "Bike", blurb: "Protect your bike", icon: Bike },
-  { id: "travel", label: "Travel", blurb: "Stay protected while travelling", icon: Plane },
-  { id: "home", label: "Home", blurb: "Protect your home & belongings", icon: Home },
-  { id: "business", label: "Business", blurb: "Protect your business", icon: Briefcase },
-];
 
 /* ------------------------------------------------------------------ */
 /* All insurances — the Explore section + quote form plan picker       */

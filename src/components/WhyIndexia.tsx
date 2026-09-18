@@ -13,7 +13,7 @@ export default function WhyIndexia() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <SectionHeading
           eyebrow="Why Indexia"
-          title="Insurance, without the confusion"
+          title="Simple, transparent insurance"
           description="No jargon, no walls of text — just the information you need to choose well."
         />
 
